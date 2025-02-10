@@ -12,55 +12,59 @@
     <!-- [Tutto il body HTML precedente rimane invariato] -->
 
     <script>
-        // Salvataggio dei dati nel localStorage
-        function saveProgress() {
-            const exerciseCards = document.querySelectorAll('.exercise-card');
-            const progressData = Array.from(exerciseCards).map(card => {
-                const counterDisplay = card.querySelector('.counter-display');
-                return {
-                    exercise: card.querySelector('h3').textContent,
-                    currentSeries: parseInt(counterDisplay.textContent.split('/')[0].split(':')[1])
-                };
-            });
-            localStorage.setItem('workoutProgress', JSON.stringify(progressData));
-            localStorage.setItem('lastProgressTime', Date.now());
-        }
-
-        // Caricamento dei dati dal localStorage
-        function loadProgress() {
-            const progressData = JSON.parse(localStorage.getItem('workoutProgress'));
-            const lastProgressTime = localStorage.getItem('lastProgressTime');
+        // Wrapper per gestire localStorage in modo sicuro
+        const StorageManager = {
+            isSupported: function() {
+                try {
+                    return 'localStorage' in window && window['localStorage'] !== null;
+                } catch (e) {
+                    return false;
+                }
+            },
             
-            if (progressData) {
-                const exerciseCards = document.querySelectorAll('.exercise-card');
-                exerciseCards.forEach(card => {
-                    const savedExercise = progressData.find(p => p.exercise === card.querySelector('h3').textContent);
-                    if (savedExercise) {
-                        const counterDisplay = card.querySelector('.counter-display');
-                        const maxSeries = parseInt(counterDisplay.textContent.split('/')[1]);
-                        const currentSeries = savedExercise.currentSeries;
-                        
-                        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-                        
-                        const addButton = card.querySelector('button:not(.reset-button)');
-                        if (currentSeries >= maxSeries) {
-                            addButton.disabled = true;
-                        }
-                    }
-                });
+            saveProgress: function(progressData) {
+                if (!this.isSupported()) {
+                    console.warn('localStorage non supportato');
+                    return;
+                }
+                
+                try {
+                    localStorage.setItem('workoutProgress', JSON.stringify(progressData));
+                    localStorage.setItem('lastProgressTime', Date.now().toString());
+                } catch (e) {
+                    console.error('Errore nel salvataggio:', e);
+                }
+            },
+            
+            loadProgress: function() {
+                if (!this.isSupported()) {
+                    console.warn('localStorage non supportato');
+                    return null;
+                }
+                
+                try {
+                    const progressData = localStorage.getItem('workoutProgress');
+                    return progressData ? JSON.parse(progressData) : null;
+                } catch (e) {
+                    console.error('Errore nel caricamento:', e);
+                    return null;
+                }
             }
-        }
+        };
 
         // Suono di allarme
         function playAlarm() {
-            const audio = new Audio('data:audio/wav;base64,UklGRhQCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhEAIAAPD/8P/w//D/8P/w//D/');
-            audio.play();
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRhQCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhEAIAAPD/8P/w//D/8P/w//D/');
+                audio.play().catch(e => console.warn('Errore nella riproduzione audio:', e));
+            } catch (e) {
+                console.warn('Impossibile riprodurre l\'audio:', e);
+            }
         }
 
         function createSeriesTracker(exerciseCard, maxSeries) {
             const exerciseType = getExerciseType(exerciseCard);
             const recoveryTime = getRecoveryTime(exerciseType);
-            const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
             
             const counterDiv = document.createElement('div');
             counterDiv.className = 'series-counter';
@@ -89,8 +93,17 @@
             
             let currentSeries = 0;
             let timerInterval;
-            let workoutTimer;
             let isRecoveryActive = false;
+            
+            function saveProgress() {
+                const progressData = {
+                    exercise: exerciseCard.querySelector('h3').textContent,
+                    currentSeries: currentSeries,
+                    maxSeries: maxSeries
+                };
+                
+                StorageManager.saveProgress([progressData]);
+            }
             
             function startRecoveryTimer(duration) {
                 if (isRecoveryActive) {
@@ -112,6 +125,7 @@
                         timerDisplay.textContent = 'Recupero completato!';
                         timerDisplay.classList.remove('active-timer');
                         isRecoveryActive = false;
+                        playAlarm();
                         setTimeout(() => {
                             timerDisplay.style.display = 'none';
                         }, 3000);
@@ -129,7 +143,6 @@
                         startRecoveryTimer(recoveryTime);
                     } else if (currentSeries === maxSeries) {
                         startRecoveryTimer(recoveryTime * 2);
-                        playAlarm();
                     }
                     
                     saveProgress();
@@ -147,7 +160,6 @@
                 timerDisplay.style.display = 'none';
                 timerDisplay.classList.remove('active-timer');
                 if (timerInterval) clearInterval(timerInterval);
-                if (workoutTimer) clearInterval(workoutTimer);
                 isRecoveryActive = false;
                 saveProgress();
             });
@@ -160,6 +172,20 @@
             counterDiv.appendChild(resetButton);
             
             exerciseCard.appendChild(counterDiv);
+            
+            // Carica il progresso salvato se presente
+            const savedProgress = StorageManager.loadProgress();
+            if (savedProgress) {
+                const exerciseProgress = savedProgress.find(p => p.exercise === exerciseCard.querySelector('h3').textContent);
+                if (exerciseProgress) {
+                    currentSeries = exerciseProgress.currentSeries;
+                    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                    
+                    if (currentSeries >= maxSeries) {
+                        addButton.disabled = true;
+                    }
+                }
+            }
         }
         
         function getExerciseType(exerciseCard) {
@@ -168,22 +194,12 @@
                 return 'large';
             } else if (title.includes('TRICIPITI') || title.includes('BICIPITI')) {
                 return 'small';
-            } else if (exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI')) {
-                return 'abs';
             }
             return 'large';
         }
         
         function getRecoveryTime(exerciseType) {
-            switch (exerciseType) {
-                case 'large':
-                    return 90;
-                case 'small':
-                case 'abs':
-                    return 60;
-                default:
-                    return 90;
-            }
+            return exerciseType === 'large' ? 90 : 60;
         }
         
         document.addEventListener('DOMContentLoaded', () => {
@@ -197,11 +213,7 @@
                     }
                 }
             });
-
-            loadProgress();
         });
-
-        window.addEventListener('beforeunload', saveProgress);
     </script>
 </body>
 </html>
