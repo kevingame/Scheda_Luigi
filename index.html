@@ -401,6 +401,58 @@
             }
         }
 
+        function startRecoveryTimer(duration) {
+            isRecoveryActive = true;
+            let timeLeft = duration;
+            timerDisplay.style.display = 'block';
+            timerDisplay.classList.add('active-timer');
+            
+            timerInterval = setInterval(() => {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerDisplay.style.display = 'none';
+                    timerDisplay.classList.remove('active-timer');
+                    playRecoverySound();
+                    isRecoveryActive = false;
+                }
+                timeLeft--;
+            }, 1000);
+        }
+        
+        // Gestione delle serie
+        addButton.addEventListener('click', () => {
+            if (currentSeries < maxSeries) {
+                currentSeries++;
+                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                
+                if (currentSeries < maxSeries) {
+                    startRecoveryTimer(recoveryTime);
+                }
+            }
+        });
+        
+        resetButton.addEventListener('click', () => {
+            currentSeries = 0;
+            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+            clearInterval(timerInterval);
+            timerDisplay.style.display = 'none';
+            timerDisplay.classList.remove('active-timer');
+            isRecoveryActive = false;
+        });
+        
+        // Aggiunta degli elementi al DOM
+        counterDiv.appendChild(exerciseTypeDiv);
+        counterDiv.appendChild(counterDisplay);
+        counterDiv.appendChild(timerDisplay);
+        counterDiv.appendChild(timerControls);
+        timerControls.appendChild(addButton);
+        timerControls.appendChild(resetButton);
+        exerciseCard.appendChild(counterDiv);
+        
         function createSeriesTracker(exerciseCard, maxSeries) {
             const exerciseType = getExerciseType(exerciseCard);
             const recoveryTime = getRecoveryTime(exerciseType);
