@@ -157,6 +157,32 @@
 	.alarm-sound {
             display: none;
         }
+	.global-timer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            z-index: 1000;
+        }
+        .reset-all-button {
+            position: fixed;
+            bottom: 70px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            z-index: 1000;
+            cursor: pointer;
+        }
+        .reset-all-button:hover {
+            background: #da190b;
+        }
     </style>
 </head>
 <body>
@@ -350,6 +376,9 @@
         </div>
     </div>
 	
+    <div class="global-timer" id="globalTimer">Tempo: 00:00:00</div>
+    <div class="reset-all-button" id="resetAllButton">Reset Tutto</div>
+
     <audio id="recoveryAlarm" class="alarm-sound">
         <source src="recovery-alarm.mp3" type="audio/mpeg">
         <source src="recovery-alarm.ogg" type="audio/ogg">
@@ -357,201 +386,230 @@
 	
     <script>
         // Local Storage Key
-	const STORAGE_KEY = 'workoutTracker';
-	
-	function saveWorkoutState(exerciseId, state) {
-	    const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-	    savedState[exerciseId] = state;
-	    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedState));
-	}
-	
-	function loadWorkoutState(exerciseId) {
-	    const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-	    return savedState[exerciseId] || null;
-	}
-	
-	function createSeriesTracker(exerciseCard, maxSeries) {
-	    const exerciseId = generateUniqueId(exerciseCard);
-	    const exerciseType = getExerciseType(exerciseCard);
-	    const recoveryTime = getRecoveryTime(exerciseType);
-	    const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
-	    
-	    const counterDiv = document.createElement('div');
-	    counterDiv.className = 'series-counter';
-	
-	    const exerciseTypeDiv = document.createElement('div');
-	    exerciseTypeDiv.className = 'exercise-type';
-	    exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
-	    
-	    const counterDisplay = document.createElement('div');
-	    counterDisplay.className = 'counter-display';
-	    
-	    const timerDisplay = document.createElement('div');
-	    timerDisplay.className = 'timer-display';
-	    timerDisplay.style.display = 'none';
-	
-	    const timerControls = document.createElement('div');
-	    timerControls.className = 'timer-controls';
-	    
-	    const addButton = document.createElement('button');
-	    addButton.textContent = '+ Serie';
-	
-	    const resetButton = document.createElement('button');
-	    resetButton.textContent = 'Reset';
-	    resetButton.className = 'reset-button';
-	
-	    let currentSeries = 0;
-	    let timerInterval;
-	    let workoutTimer;
-	    let isRecoveryActive = false;
-	    let remainingTime = 0;
-	    
-	    // Load previous state
-	    const savedState = loadWorkoutState(exerciseId);
-	    if (savedState) {
-	        currentSeries = savedState.currentSeries || 0;
-	        remainingTime = savedState.remainingTime || 0;
-	        isRecoveryActive = savedState.isRecoveryActive || false;
-	    }
-	
-	    // Update initial display
-	    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	
-	    function playAlarm() {
-	        const alarm = document.getElementById('recoveryAlarm');
-	        alarm.play();
-	    }
-	
-	    function saveCurrentState() {
-	        saveWorkoutState(exerciseId, {
-	            currentSeries,
-	            remainingTime,
-	            isRecoveryActive
-	        });
-	    }
-	
-	    function startRecoveryTimer(duration) {
-	        if (isRecoveryActive) {
-	            clearInterval(timerInterval);
-	        }
-	        
-	        let timeLeft = remainingTime || duration;
-	        timerDisplay.style.display = 'block';
-	        timerDisplay.classList.add('active-timer');
-	        isRecoveryActive = true;
-	        
-	        timerInterval = setInterval(() => {
-	            const minutes = Math.floor(timeLeft / 60);
-	            const seconds = timeLeft % 60;
-	            timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-	            remainingTime = timeLeft;
-	            saveCurrentState();
-	            
-	            if (timeLeft === 0) {
-	                clearInterval(timerInterval);
-	                timerDisplay.textContent = 'Recupero completato!';
-	                timerDisplay.classList.remove('active-timer');
-	                isRecoveryActive = false;
-	                remainingTime = 0;
-	                playAlarm();
-	                saveCurrentState();
-	                
-	                setTimeout(() => {
-	                    timerDisplay.style.display = 'none';
-	                }, 3000);
-	            }
-	            timeLeft--;
-	        }, 1000);
-	    }
-	
-	    addButton.addEventListener('click', () => {
-	        if (currentSeries < maxSeries) {
-	            currentSeries++;
-	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	            saveCurrentState();
-	
-	            if (currentSeries === maxSeries) {
-	                addButton.disabled = true;
-	                // Start recovery after last series
-	                startRecoveryTimer(recoveryTime);
-	            } else if (currentSeries < maxSeries) {
-	                startRecoveryTimer(recoveryTime);
-	            }
-	        }
-	    });
-	
-	    resetButton.addEventListener('click', () => {
-	        currentSeries = 0;
-	        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	        addButton.disabled = false;
-	        timerDisplay.style.display = 'none';
-	        timerDisplay.classList.remove('active-timer');
-	        if (timerInterval) clearInterval(timerInterval);
-	        if (workoutTimer) clearInterval(workoutTimer);
-	        isRecoveryActive = false;
-	        remainingTime = 0;
-	        localStorage.removeItem(STORAGE_KEY);
-	    });
-	
-	    // Restore previous state if exists
-	    if (savedState) {
-	        if (savedState.isRecoveryActive) {
-	            startRecoveryTimer(savedState.remainingTime);
-	        }
-	    }
-	
-	    counterDiv.appendChild(exerciseTypeDiv);
-	    counterDiv.appendChild(counterDisplay);
-	    counterDiv.appendChild(timerDisplay);
-	    counterDiv.appendChild(timerControls);
-	    counterDiv.appendChild(addButton);
-	    counterDiv.appendChild(resetButton);
-	
-	    exerciseCard.appendChild(counterDiv);
-	}
-	
-	function generateUniqueId(exerciseCard) {
-	    const exerciseName = exerciseCard.querySelector('h3')?.textContent || '';
-	    return exerciseName.replace(/\s+/g, '-').toLowerCase();
-	}
-	
-	function getExerciseType(exerciseCard) {
-	    const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
-	    if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
-	        return 'large';
-	    } else if (title.includes('TRICIPITI') || title.includes('BICIPITI')) {
-	        return 'small';
-	    } else if (exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI')) {
-	        return 'abs';
-	    }
-	    return 'large';
-	}
-	
-	function getRecoveryTime(exerciseType) {
-	    switch (exerciseType) {
-	        case 'large':
-	            return 90;
-	        case 'small':
-	        case 'abs':
-	            return 60;
-	        default:
-	            return 90;
-	    }
-	}
-	
-	// Add counters to all exercise cards when the page loads
-	document.addEventListener('DOMContentLoaded', () => {
-	    const exerciseCards = document.querySelectorAll('.exercise-card');
-	    exerciseCards.forEach(card => {
-	        const seriesText = card.querySelector('p')?.textContent;
-	        if (seriesText) {
-	            const maxSeries = parseInt(seriesText);
-	            if (!isNaN(maxSeries)) {
-	                createSeriesTracker(card, maxSeries);
-	            }
-	        }
-	    });
-	});
+        const STORAGE_KEY = 'workoutTracker';
+
+        // Global Timer
+        let globalTimerInterval;
+        let globalTimeElapsed = 0;
+
+        function startGlobalTimer() {
+            globalTimerInterval = setInterval(() => {
+                globalTimeElapsed++;
+                const hours = Math.floor(globalTimeElapsed / 3600);
+                const minutes = Math.floor((globalTimeElapsed % 3600) / 60);
+                const seconds = globalTimeElapsed % 60;
+                document.getElementById('globalTimer').textContent = `Tempo: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function resetGlobalTimer() {
+            clearInterval(globalTimerInterval);
+            globalTimeElapsed = 0;
+            document.getElementById('globalTimer').textContent = 'Tempo: 00:00:00';
+        }
+
+        function saveWorkoutState(exerciseId, state) {
+            const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            savedState[exerciseId] = state;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(savedState));
+        }
+
+        function loadWorkoutState(exerciseId) {
+            const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            return savedState[exerciseId] || null;
+        }
+
+        function createSeriesTracker(exerciseCard, maxSeries) {
+            const exerciseId = generateUniqueId(exerciseCard);
+            const exerciseType = getExerciseType(exerciseCard);
+            const recoveryTime = getRecoveryTime(exerciseType);
+            const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
+
+            const counterDiv = document.createElement('div');
+            counterDiv.className = 'series-counter';
+
+            const exerciseTypeDiv = document.createElement('div');
+            exerciseTypeDiv.className = 'exercise-type';
+            exerciseTypeDiv.textContent = `Recupero: ${recoveryTime / 60} minuti`;
+
+            const counterDisplay = document.createElement('div');
+            counterDisplay.className = 'counter-display';
+
+            const timerDisplay = document.createElement('div');
+            timerDisplay.className = 'timer-display';
+            timerDisplay.style.display = 'none';
+
+            const timerControls = document.createElement('div');
+            timerControls.className = 'timer-controls';
+
+            const addButton = document.createElement('button');
+            addButton.textContent = '+ Serie';
+
+            const resetButton = document.createElement('button');
+            resetButton.textContent = 'Reset';
+            resetButton.className = 'reset-button';
+
+            let currentSeries = 0;
+            let timerInterval;
+            let workoutTimer;
+            let isRecoveryActive = false;
+            let remainingTime = 0;
+
+            // Load previous state
+            const savedState = loadWorkoutState(exerciseId);
+            if (savedState) {
+                currentSeries = savedState.currentSeries || 0;
+                remainingTime = savedState.remainingTime || 0;
+                isRecoveryActive = savedState.isRecoveryActive || false;
+            }
+
+            // Update initial display
+            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+
+            function playAlarm() {
+                const alarm = document.getElementById('recoveryAlarm');
+                alarm.play();
+            }
+
+            function saveCurrentState() {
+                saveWorkoutState(exerciseId, {
+                    currentSeries,
+                    remainingTime,
+                    isRecoveryActive
+                });
+            }
+
+            function startRecoveryTimer(duration) {
+                if (isRecoveryActive) {
+                    clearInterval(timerInterval);
+                }
+
+                let timeLeft = remainingTime || duration;
+                timerDisplay.style.display = 'block';
+                timerDisplay.classList.add('active-timer');
+                isRecoveryActive = true;
+
+                timerInterval = setInterval(() => {
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    remainingTime = timeLeft;
+                    saveCurrentState();
+
+                    if (timeLeft === 0) {
+                        clearInterval(timerInterval);
+                        timerDisplay.textContent = 'Recupero completato!';
+                        timerDisplay.classList.remove('active-timer');
+                        isRecoveryActive = false;
+                        remainingTime = 0;
+                        playAlarm();
+                        saveCurrentState();
+
+                        setTimeout(() => {
+                            timerDisplay.style.display = 'none';
+                        }, 3000);
+                    }
+                    timeLeft--;
+                }, 1000);
+            }
+
+            addButton.addEventListener('click', () => {
+                if (currentSeries < maxSeries) {
+                    currentSeries++;
+                    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                    saveCurrentState();
+
+                    if (currentSeries === maxSeries) {
+                        addButton.disabled = true;
+                        // Start recovery after last series
+                        startRecoveryTimer(recoveryTime);
+                    } else if (currentSeries < maxSeries) {
+                        startRecoveryTimer(recoveryTime);
+                    }
+                }
+            });
+
+            resetButton.addEventListener('click', () => {
+                currentSeries = 0;
+                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                addButton.disabled = false;
+                timerDisplay.style.display = 'none';
+                timerDisplay.classList.remove('active-timer');
+                if (timerInterval) clearInterval(timerInterval);
+                if (workoutTimer) clearInterval(workoutTimer);
+                isRecoveryActive = false;
+                remainingTime = 0;
+                localStorage.removeItem(STORAGE_KEY);
+            });
+
+            // Restore previous state if exists
+            if (savedState) {
+                if (savedState.isRecoveryActive) {
+                    startRecoveryTimer(savedState.remainingTime);
+                }
+            }
+
+            counterDiv.appendChild(exerciseTypeDiv);
+            counterDiv.appendChild(counterDisplay);
+            counterDiv.appendChild(timerDisplay);
+            counterDiv.appendChild(timerControls);
+            counterDiv.appendChild(addButton);
+            counterDiv.appendChild(resetButton);
+
+            exerciseCard.appendChild(counterDiv);
+        }
+
+        function generateUniqueId(exerciseCard) {
+            const exerciseName = exerciseCard.querySelector('h3')?.textContent || '';
+            return exerciseName.replace(/\s+/g, '-').toLowerCase();
+        }
+
+        function getExerciseType(exerciseCard) {
+            const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
+            if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
+                return 'large';
+            } else if (title.includes('TRICIPITI') || title.includes('BICIPITI')) {
+                return 'small';
+            } else if (exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI')) {
+                return 'abs';
+            }
+            return 'large';
+        }
+
+        function getRecoveryTime(exerciseType) {
+            switch (exerciseType) {
+                case 'large':
+                    return 90;
+                case 'small':
+                case 'abs':
+                    return 60;
+                default:
+                    return 90;
+            }
+        }
+
+        // Add counters to all exercise cards when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const exerciseCards = document.querySelectorAll('.exercise-card');
+            exerciseCards.forEach(card => {
+                const seriesText = card.querySelector('p')?.textContent;
+                if (seriesText) {
+                    const maxSeries = parseInt(seriesText);
+                    if (!isNaN(maxSeries)) {
+                        createSeriesTracker(card, maxSeries);
+                    }
+                }
+            });
+
+            startGlobalTimer();
+        });
+
+        // Reset all button
+        document.getElementById('resetAllButton').addEventListener('click', () => {
+            resetGlobalTimer();
+            localStorage.clear();
+            window.location.reload();
+        });
     </script>
 </body>
 </html>
