@@ -513,18 +513,50 @@
                 }, 1000);
             }
 
+            function startAbTimer() {
+                let timeElapsed = 0;
+                const workoutDuration = 120; // 2 minuti in secondi
+                timerDisplay.style.display = 'block';
+                timerDisplay.classList.add('active-timer');
+
+                workoutTimer = setInterval(() => {
+                    const minutes = Math.floor(timeElapsed / 60);
+                    const seconds = timeElapsed % 60;
+                    timerDisplay.textContent = `Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                    if (timeElapsed >= workoutDuration) {
+                        clearInterval(workoutTimer);
+                        startRecoveryTimer(60); // 1 minute recovery for abs
+                    }
+                    timeElapsed++;
+                }, 1000);
+            }
+
             addButton.addEventListener('click', () => {
                 if (currentSeries < maxSeries) {
                     currentSeries++;
                     counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
                     saveCurrentState();
 
+                    if (isRecoveryActive) {
+                        clearInterval(timerInterval);
+                        isRecoveryActive = false;
+                        timerDisplay.style.display = 'none';
+                    }
+
                     if (currentSeries === maxSeries) {
                         addButton.disabled = true;
-                        // Start recovery after last series
-                        startRecoveryTimer(recoveryTime);
+                        if (isAbWorkout) {
+                            startAbTimer();
+                        } else {
+                            startRecoveryTimer(recoveryTime);
+                        }
                     } else if (currentSeries < maxSeries) {
-                        startRecoveryTimer(recoveryTime);
+                        if (isAbWorkout) {
+                            startAbTimer();
+                        } else {
+                            startRecoveryTimer(recoveryTime);
+                        }
                     }
                 }
             });
