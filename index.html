@@ -1,100 +1,207 @@
-// Aggiungi queste funzioni all'inizio dello script
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scheda di Allenamento</title>
+    <style>
+        /* [Tutto il CSS precedente rimane invariato] */
+    </style>
+</head>
+<body>
+    <!-- [Tutto il body HTML precedente rimane invariato] -->
 
-// Salvataggio dei dati nel localStorage
-function saveProgress() {
-    const exerciseCards = document.querySelectorAll('.exercise-card');
-    const progressData = Array.from(exerciseCards).map(card => {
-        const counterDisplay = card.querySelector('.counter-display');
-        return {
-            exercise: card.querySelector('h3').textContent,
-            currentSeries: parseInt(counterDisplay.textContent.split('/')[0].split(':')[1])
-        };
-    });
-    localStorage.setItem('workoutProgress', JSON.stringify(progressData));
-    localStorage.setItem('lastProgressTime', Date.now());
-}
-
-// Caricamento dei dati dal localStorage
-function loadProgress() {
-    const progressData = JSON.parse(localStorage.getItem('workoutProgress'));
-    const lastProgressTime = localStorage.getItem('lastProgressTime');
-    
-    if (progressData) {
-        const exerciseCards = document.querySelectorAll('.exercise-card');
-        exerciseCards.forEach(card => {
-            const savedExercise = progressData.find(p => p.exercise === card.querySelector('h3').textContent);
-            if (savedExercise) {
+    <script>
+        // Salvataggio dei dati nel localStorage
+        function saveProgress() {
+            const exerciseCards = document.querySelectorAll('.exercise-card');
+            const progressData = Array.from(exerciseCards).map(card => {
                 const counterDisplay = card.querySelector('.counter-display');
-                const maxSeries = parseInt(counterDisplay.textContent.split('/')[1]);
-                const currentSeries = savedExercise.currentSeries;
+                return {
+                    exercise: card.querySelector('h3').textContent,
+                    currentSeries: parseInt(counterDisplay.textContent.split('/')[0].split(':')[1])
+                };
+            });
+            localStorage.setItem('workoutProgress', JSON.stringify(progressData));
+            localStorage.setItem('lastProgressTime', Date.now());
+        }
+
+        // Caricamento dei dati dal localStorage
+        function loadProgress() {
+            const progressData = JSON.parse(localStorage.getItem('workoutProgress'));
+            const lastProgressTime = localStorage.getItem('lastProgressTime');
+            
+            if (progressData) {
+                const exerciseCards = document.querySelectorAll('.exercise-card');
+                exerciseCards.forEach(card => {
+                    const savedExercise = progressData.find(p => p.exercise === card.querySelector('h3').textContent);
+                    if (savedExercise) {
+                        const counterDisplay = card.querySelector('.counter-display');
+                        const maxSeries = parseInt(counterDisplay.textContent.split('/')[1]);
+                        const currentSeries = savedExercise.currentSeries;
+                        
+                        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                        
+                        const addButton = card.querySelector('button:not(.reset-button)');
+                        if (currentSeries >= maxSeries) {
+                            addButton.disabled = true;
+                        }
+                    }
+                });
+            }
+        }
+
+        // Suono di allarme
+        function playAlarm() {
+            const audio = new Audio('data:audio/wav;base64,UklGRhQCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhEAIAAPD/8P/w//D/8P/w//D/');
+            audio.play();
+        }
+
+        function createSeriesTracker(exerciseCard, maxSeries) {
+            const exerciseType = getExerciseType(exerciseCard);
+            const recoveryTime = getRecoveryTime(exerciseType);
+            const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
+            
+            const counterDiv = document.createElement('div');
+            counterDiv.className = 'series-counter';
+            
+            const exerciseTypeDiv = document.createElement('div');
+            exerciseTypeDiv.className = 'exercise-type';
+            exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
+            
+            const counterDisplay = document.createElement('div');
+            counterDisplay.className = 'counter-display';
+            counterDisplay.textContent = 'Serie: 0/' + maxSeries;
+            
+            const timerDisplay = document.createElement('div');
+            timerDisplay.className = 'timer-display';
+            timerDisplay.style.display = 'none';
+            
+            const timerControls = document.createElement('div');
+            timerControls.className = 'timer-controls';
+            
+            const addButton = document.createElement('button');
+            addButton.textContent = '+ Serie';
+            
+            const resetButton = document.createElement('button');
+            resetButton.textContent = 'Reset';
+            resetButton.className = 'reset-button';
+            
+            let currentSeries = 0;
+            let timerInterval;
+            let workoutTimer;
+            let isRecoveryActive = false;
+            
+            function startRecoveryTimer(duration) {
+                if (isRecoveryActive) {
+                    clearInterval(timerInterval);
+                }
                 
-                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                let timeLeft = duration;
+                timerDisplay.style.display = 'block';
+                timerDisplay.classList.add('active-timer');
+                isRecoveryActive = true;
                 
-                const addButton = card.querySelector('button:not(.reset-button)');
-                if (currentSeries >= maxSeries) {
+                timerInterval = setInterval(() => {
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    if (timeLeft === 0) {
+                        clearInterval(timerInterval);
+                        timerDisplay.textContent = 'Recupero completato!';
+                        timerDisplay.classList.remove('active-timer');
+                        isRecoveryActive = false;
+                        setTimeout(() => {
+                            timerDisplay.style.display = 'none';
+                        }, 3000);
+                    }
+                    timeLeft--;
+                }, 1000);
+            }
+            
+            addButton.addEventListener('click', () => {
+                if (currentSeries < maxSeries) {
+                    currentSeries++;
+                    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                    
+                    if (currentSeries < maxSeries) {
+                        startRecoveryTimer(recoveryTime);
+                    } else if (currentSeries === maxSeries) {
+                        startRecoveryTimer(recoveryTime * 2);
+                        playAlarm();
+                    }
+                    
+                    saveProgress();
+                }
+                
+                if (currentSeries === maxSeries) {
                     addButton.disabled = true;
                 }
-            }
-        });
-    }
-}
-
-// Suono di allarme
-function playAlarm() {
-    const audio = new Audio('data:audio/wav;base64,UklGRhQCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhEAIAAPD/8P/w//D/8P/w//D/');
-    audio.play();
-}
-
-// Modifica la funzione createSeriesTracker per aggiungere il recupero dopo 4/4
-function createSeriesTracker(exerciseCard, maxSeries) {
-    // ... (codice esistente) ...
-
-    // Modifica l'evento del bottone "addButton"
-    addButton.addEventListener('click', () => {
-        if (currentSeries < maxSeries) {
-            currentSeries++;
-            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+            });
             
-            if (currentSeries < maxSeries) {
-                startRecoveryTimer(recoveryTime);
-            } else if (currentSeries === maxSeries) {
-                // Avvia il recupero finale
-                startRecoveryTimer(recoveryTime * 2); // Doppio tempo di recupero
-                playAlarm(); // Suona l'allarme
-            }
+            resetButton.addEventListener('click', () => {
+                currentSeries = 0;
+                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                addButton.disabled = false;
+                timerDisplay.style.display = 'none';
+                timerDisplay.classList.remove('active-timer');
+                if (timerInterval) clearInterval(timerInterval);
+                if (workoutTimer) clearInterval(workoutTimer);
+                isRecoveryActive = false;
+                saveProgress();
+            });
             
-            saveProgress(); // Salva i progressi
+            counterDiv.appendChild(exerciseTypeDiv);
+            counterDiv.appendChild(counterDisplay);
+            counterDiv.appendChild(timerDisplay);
+            counterDiv.appendChild(timerControls);
+            counterDiv.appendChild(addButton);
+            counterDiv.appendChild(resetButton);
+            
+            exerciseCard.appendChild(counterDiv);
         }
         
-        if (currentSeries === maxSeries) {
-            addButton.disabled = true;
+        function getExerciseType(exerciseCard) {
+            const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
+            if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
+                return 'large';
+            } else if (title.includes('TRICIPITI') || title.includes('BICIPITI')) {
+                return 'small';
+            } else if (exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI')) {
+                return 'abs';
+            }
+            return 'large';
         }
-    });
-
-    // Aggiungi salvataggio al reset
-    resetButton.addEventListener('click', () => {
-        // ... (codice esistente) ...
-        saveProgress(); // Salva i progressi dopo il reset
-    });
-
-    return counterDiv;
-}
-
-// Carica i progressi quando la pagina si carica
-document.addEventListener('DOMContentLoaded', () => {
-    const exerciseCards = document.querySelectorAll('.exercise-card');
-    exerciseCards.forEach(card => {
-        const seriesText = card.querySelector('p')?.textContent;
-        if (seriesText) {
-            const maxSeries = parseInt(seriesText);
-            if (!isNaN(maxSeries)) {
-                createSeriesTracker(card, maxSeries);
+        
+        function getRecoveryTime(exerciseType) {
+            switch (exerciseType) {
+                case 'large':
+                    return 90;
+                case 'small':
+                case 'abs':
+                    return 60;
+                default:
+                    return 90;
             }
         }
-    });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const exerciseCards = document.querySelectorAll('.exercise-card');
+            exerciseCards.forEach(card => {
+                const seriesText = card.querySelector('p')?.textContent;
+                if (seriesText) {
+                    const maxSeries = parseInt(seriesText);
+                    if (!isNaN(maxSeries)) {
+                        createSeriesTracker(card, maxSeries);
+                    }
+                }
+            });
 
-    loadProgress(); // Carica i progressi salvati
-});
+            loadProgress();
+        });
 
-// Salva i progressi prima che la pagina venga chiusa
-window.addEventListener('beforeunload', saveProgress);
+        window.addEventListener('beforeunload', saveProgress);
+    </script>
+</body>
+</html>
