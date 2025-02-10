@@ -491,7 +491,8 @@
 	        currentSeries: 0,
 	        isRecoveryActive: false,
 	        recoveryTimeLeft: 0,
-	        workoutTimeElapsed: 0
+	        workoutTimeElapsed: 0,
+	        timerDisplayVisible: false
 	    });
 	
 	    const exerciseType = getExerciseType(exerciseCard);
@@ -508,27 +509,41 @@
 	    
 	    const counterDisplay = document.createElement('div');
 	    counterDisplay.className = 'counter-display';
-	    counterDisplay.textContent = 'Serie: 0/' + maxSeries;
-	
+	    
 	    const timerDisplay = document.createElement('div');
 	    timerDisplay.className = 'timer-display';
-	    timerDisplay.style.display = 'none';
-	
+	    
 	    const timerControls = document.createElement('div');
 	    timerControls.className = 'timer-controls';
 	    
 	    const addButton = document.createElement('button');
 	    addButton.textContent = '+ Serie';
-	
+	    
 	    const resetButton = document.createElement('button');
 	    resetButton.textContent = 'Reset';
 	    resetButton.className = 'reset-button';
 	
+	    // Ripristina lo stato salvato
 	    let currentSeries = savedState.currentSeries;
+	    let isRecoveryActive = savedState.isRecoveryActive;
+	    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	    
+	    if (currentSeries >= maxSeries) {
+	        addButton.disabled = true;
+	    }
+	
+	    // Ripristina il timer di recupero se era attivo
+	    if (isRecoveryActive && savedState.recoveryTimeLeft > 0) {
+	        timerDisplay.style.display = 'block';
+	        timerDisplay.classList.add('active-timer');
+	        startRecoveryTimer(savedState.recoveryTimeLeft);
+	    } else {
+	        timerDisplay.style.display = savedState.timerDisplayVisible ? 'block' : 'none';
+	    }
+	
 	    let timerInterval;
 	    let workoutTimer;
-	    let isRecoveryActive = savedState.isRecoveryActive;
-	    
+	
 	    function startRecoveryTimer(duration) {
 	        if (isRecoveryActive) {
 	            clearInterval(timerInterval);
@@ -540,6 +555,13 @@
 	        timerDisplay.style.display = 'block';
 	        timerDisplay.classList.add('active-timer');
 	        
+	        StorageManager.set(exerciseKey, {
+	            ...savedState,
+	            isRecoveryActive: true,
+	            recoveryTimeLeft: timeLeft,
+	            timerDisplayVisible: true
+	        });
+	
 	        timerInterval = setInterval(() => {
 	            const minutes = Math.floor(timeLeft / 60);
 	            const seconds = timeLeft % 60;
@@ -550,7 +572,7 @@
 	                timerSound.play();
 	                timerDisplay.textContent = 'Recupero completato!';
 	                isRecoveryActive = false;
-	                StorageManager.set(exerciseKey, { 
+	                StorageManager.set(exerciseKey, {
 	                    ...savedState,
 	                    isRecoveryActive: false,
 	                    recoveryTimeLeft: 0
@@ -563,8 +585,8 @@
 	            });
 	        }, 1000);
 	    }
-	    
-            if (isAbWorkout) {
+	
+	    if (isAbWorkout) {
 	        const startWorkoutButton = document.createElement('button');
 	        startWorkoutButton.textContent = 'Inizia 2min';
 	        
@@ -574,6 +596,32 @@
 	        
 	        timerControls.appendChild(startWorkoutButton);
 	        timerControls.appendChild(stopWorkoutButton);
+	
+	        // Ripristina il timer dell'allenamento se era attivo
+	        if (savedState.workoutTimeElapsed > 0 && savedState.workoutTimeElapsed < 120) {
+	            startWorkoutButton.style.display = 'none';
+	            stopWorkoutButton.style.display = 'inline';
+	            let timeElapsed = savedState.workoutTimeElapsed;
+	            
+	            workoutTimer = setInterval(() => {
+	                const minutes = Math.floor(timeElapsed / 60);
+	                const seconds = timeElapsed % 60;
+	                timerDisplay.textContent = `Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+	        
+	                if (timeElapsed >= 120) {
+	                    clearInterval(workoutTimer);
+	                    timerSound.play();
+	                    startRecoveryTimer(60);
+	                    stopWorkoutButton.style.display = 'none';
+	                    startWorkoutButton.style.display = 'inline';
+	                }
+	                timeElapsed++;
+	                StorageManager.set(exerciseKey, {
+	                    ...savedState,
+	                    workoutTimeElapsed: timeElapsed
+	                });
+	            }, 1000);
+	        }
 	        
 	        startWorkoutButton.addEventListener('click', () => {
 	            if (isRecoveryActive) {
@@ -582,20 +630,25 @@
 	            }
 	
 	            let timeElapsed = 0;
-	            const workoutDuration = 120;
 	            startWorkoutButton.style.display = 'none';
 	            stopWorkoutButton.style.display = 'inline';
 	            timerDisplay.style.display = 'block';
 	            timerDisplay.classList.add('active-timer');
+	
+	            StorageManager.set(exerciseKey, {
+	                ...savedState,
+	                workoutTimeElapsed: timeElapsed,
+	                timerDisplayVisible: true
+	            });
 	
 	            workoutTimer = setInterval(() => {
 	                const minutes = Math.floor(timeElapsed / 60);
 	                const seconds = timeElapsed % 60;
 	                timerDisplay.textContent = `Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 	        
-	                if (timeElapsed >= workoutDuration) {
+	                if (timeElapsed >= 120) {
 	                    clearInterval(workoutTimer);
-	                    timerSound.play(); // Play sound when workout completes
+	                    timerSound.play();
 	                    startRecoveryTimer(60);
 	                    stopWorkoutButton.style.display = 'none';
 	                    startWorkoutButton.style.display = 'inline';
@@ -620,9 +673,11 @@
 	        if (currentSeries < maxSeries) {
 	            currentSeries++;
 	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	            StorageManager.set(exerciseKey, { 
+	            
+	            StorageManager.set(exerciseKey, {
 	                ...savedState,
-	                currentSeries 
+	                currentSeries,
+	                timerDisplayVisible: true
 	            });
 	
 	            if (currentSeries < maxSeries) {
@@ -630,11 +685,8 @@
 	            } else {
 	                startRecoveryTimer(recoveryTime);
 	                timerSound.play();
+	                addButton.disabled = true;
 	            }
-	        }
-	
-	        if (currentSeries === maxSeries) {
-	            addButton.disabled = true;
 	        }
 	    });
 	
@@ -647,11 +699,13 @@
 	        if (timerInterval) clearInterval(timerInterval);
 	        if (workoutTimer) clearInterval(workoutTimer);
 	        isRecoveryActive = false;
+	        
 	        StorageManager.set(exerciseKey, {
 	            currentSeries: 0,
 	            isRecoveryActive: false,
 	            recoveryTimeLeft: 0,
-	            workoutTimeElapsed: 0
+	            workoutTimeElapsed: 0,
+	            timerDisplayVisible: false
 	        });
 	    });
 	
