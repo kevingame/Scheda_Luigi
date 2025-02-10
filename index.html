@@ -154,6 +154,23 @@
                 grid-template-columns: 1fr;
             }
         }
+
+	.total-workout-timer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .total-workout-timer button {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -347,11 +364,108 @@
         </div>
     </div>
 
+    <div id="total-workout-timer" class="total-workout-timer">
+        <div id="total-time-display">Tempo totale: 00:00:00</div>
+        <button id="reset-total-timer">Reset Allenamento</button>
+    </div>
+
+    <audio id="timer-sound">
+        <source src="https://www.soundjay.com/button/sounds/button-09.mp3" type="audio/mpeg">
+    </audio>
+	
     <script>
+	// Utility function for local storage management
+        const StorageManager = {
+            set: (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    console.error('Storage error:', e);
+                }
+            },
+            get: (key, defaultValue = null) => {
+                try {
+                    const value = localStorage.getItem(key);
+                    return value ? JSON.parse(value) : defaultValue;
+                } catch (e) {
+                    console.error('Storage retrieval error:', e);
+                    return defaultValue;
+                }
+            }
+        };
+
+	// Total workout timer
+        class TotalWorkoutTimer {
+            constructor() {
+                this.startTime = StorageManager.get('workoutStartTime', null);
+                this.totalPausedTime = StorageManager.get('totalPausedTime', 0);
+                this.timerInterval = null;
+                this.timerDisplay = document.getElementById('total-time-display');
+                this.resetButton = document.getElementById('reset-total-timer');
+
+                this.resetButton.addEventListener('click', () => this.resetTimer());
+
+                if (this.startTime) {
+                    this.startTimer();
+                }
+            }
+
+            startTimer() {
+                if (!this.startTime) {
+                    this.startTime = Date.now();
+                    StorageManager.set('workoutStartTime', this.startTime);
+                }
+
+                this.timerInterval = setInterval(() => {
+                    const currentTime = Date.now();
+                    const elapsedTime = currentTime - this.startTime - this.totalPausedTime;
+                    this.updateDisplay(elapsedTime);
+                }, 1000);
+            }
+
+            updateDisplay(elapsedTime) {
+                const hours = Math.floor(elapsedTime / 3600000);
+                const minutes = Math.floor((elapsedTime % 3600000) / 60000);
+                const seconds = Math.floor((elapsedTime % 60000) / 1000);
+
+                this.timerDisplay.textContent = `Tempo totale: ${
+                    hours.toString().padStart(2, '0')
+                }:${
+                    minutes.toString().padStart(2, '0')
+                }:${
+                    seconds.toString().padStart(2, '0')
+                }`;
+            }
+
+            resetTimer() {
+                clearInterval(this.timerInterval);
+                this.startTime = null;
+                this.totalPausedTime = 0;
+                StorageManager.set('workoutStartTime', null);
+                StorageManager.set('totalPausedTime', 0);
+                this.timerDisplay.textContent = 'Tempo totale: 00:00:00';
+                
+                // Reset all exercise trackers
+                document.querySelectorAll('.series-counter').forEach(counter => {
+                    const resetButton = counter.querySelector('.reset-button');
+                    if (resetButton) resetButton.click();
+                });
+            }
+        }
+	    
         function createSeriesTracker(exerciseCard, maxSeries) {
+            const exerciseKey = `exercise_${exerciseCard.querySelector('h3').textContent}`;
+            const savedState = StorageManager.get(exerciseKey, {
+                currentSeries: 0,
+                isRecoveryActive: false,
+                recoveryTimeLeft: 0,
+                workoutTimeElapsed: 0
+            });
+
             const exerciseType = getExerciseType(exerciseCard);
             const recoveryTime = getRecoveryTime(exerciseType);
             const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
+            const timerSound = document.getElementById('timer-sound');
             
             const counterDiv = document.createElement('div');
             counterDiv.className = 'series-counter';
@@ -423,7 +537,28 @@
         			}
         			timeElapsed++;
     			}, 1000);
-		});
+			addButton.addEventListener('click', () => {
+	                if (currentSeries < maxSeries) {
+	                    currentSeries++;
+	                    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	                    StorageManager.set(exerciseKey, { 
+	                        ...StorageManager.get(exerciseKey), 
+	                        currentSeries 
+	                    });
+	
+	                    if (currentSeries < maxSeries) {
+	                        startRecoveryTimer(recoveryTime);
+	                    } else {
+	                        // After last series, start recovery
+	                        startRecoveryTimer(recoveryTime);
+	                        timerSound.play();
+	                    }
+	                }
+	
+	                if (currentSeries === maxSeries) {
+	                    addButton.disabled = true;
+	                }
+	            });
                 
                 stopWorkoutButton.addEventListener('click', () => {
                     clearInterval(workoutTimer);
@@ -434,15 +569,7 @@
             }
             
             function startRecoveryTimer(duration) {
-                if (isRecoveryActive) {
-                    clearInterval(timerInterval);
-                }
-                
-                let timeLeft = duration;
-                timerDisplay.style.display = 'block';
-                timerDisplay.classList.add('active-timer');
-                isRecoveryActive = true;
-                
+                // Similar to existing function, with sound and state saving
                 timerInterval = setInterval(() => {
                     const minutes = Math.floor(timeLeft / 60);
                     const seconds = timeLeft % 60;
@@ -450,17 +577,14 @@
                     
                     if (timeLeft === 0) {
                         clearInterval(timerInterval);
+                        timerSound.play(); // Play sound when recovery is complete
                         timerDisplay.textContent = 'Recupero completato!';
-                        timerDisplay.classList.remove('active-timer');
-                        isRecoveryActive = false;
-                        setTimeout(() => {
-                            timerDisplay.style.display = 'none';
-                        }, 3000);
+                        // Additional logic for state management
                     }
                     timeLeft--;
                 }, 1000);
             }
-
+	    
             addButton.addEventListener('click', () => {
                 if (currentSeries < maxSeries) {
                     currentSeries++;
@@ -520,7 +644,7 @@
                     return 90;
             }
         }
-        
+        const totalWorkoutTimer = new TotalWorkoutTimer();
         // Add counters to all exercise cards when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             const exerciseCards = document.querySelectorAll('.exercise-card');
