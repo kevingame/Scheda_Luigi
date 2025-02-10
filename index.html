@@ -402,14 +402,17 @@
 	        this.timerInterval = null;
 	        this.timerDisplay = document.getElementById('total-time-display');
 	        this.resetButton = document.getElementById('reset-total-timer');
-	        this.startButton = document.createElement('button');
-	        this.startButton.textContent = 'Avvia Allenamento';
-	        this.startButton.id = 'start-total-timer';
 	        
-	        // Insert start button before reset button
-	        this.resetButton.parentNode.insertBefore(this.startButton, this.resetButton);
+	        // Controlla se il pulsante "Avvia Allenamento" esiste già
+	        this.startButton = document.getElementById('start-total-timer');
+	        if (!this.startButton) {
+	            this.startButton = document.createElement('button');
+	            this.startButton.textContent = 'Avvia Allenamento';
+	            this.startButton.id = 'start-total-timer';
+	            this.resetButton.parentNode.insertBefore(this.startButton, this.resetButton);
+	        }
 	        
-	        // Style reset button
+	        // Stile del pulsante di reset
 	        this.resetButton.style.backgroundColor = '#f44336';
 	        this.resetButton.style.color = 'white';
 	        
@@ -422,7 +425,7 @@
 	            this.startButton.style.display = 'none';
 	        }
 	        
-	        // Handle page visibility change
+	        // Gestione del cambio di visibilità della pagina
 	        document.addEventListener('visibilitychange', () => {
 	            if (document.hidden) {
 	                StorageManager.set('lastHiddenTime', Date.now());
