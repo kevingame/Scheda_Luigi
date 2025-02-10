@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scheada di Allenamento</title>
+    <title>Scheda di Allenamento</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -385,20 +385,27 @@
     </audio>
 	
     <script>
-        // Local Storage Key
+        // Local Storage Keys
         const STORAGE_KEY = 'workoutTracker';
+        const GLOBAL_TIMER_KEY = 'globalTimerState';
 
         // Global Timer
         let globalTimerInterval;
         let globalTimeElapsed = 0;
 
         function startGlobalTimer() {
+            const savedState = JSON.parse(localStorage.getItem(GLOBAL_TIMER_KEY) || '{}');
+            globalTimeElapsed = savedState.time || 0;
+            
             globalTimerInterval = setInterval(() => {
                 globalTimeElapsed++;
                 const hours = Math.floor(globalTimeElapsed / 3600);
                 const minutes = Math.floor((globalTimeElapsed % 3600) / 60);
                 const seconds = globalTimeElapsed % 60;
                 document.getElementById('globalTimer').textContent = `Tempo: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Save global timer state periodically
+                localStorage.setItem(GLOBAL_TIMER_KEY, JSON.stringify({ time: globalTimeElapsed }));
             }, 1000);
         }
 
@@ -406,6 +413,7 @@
             clearInterval(globalTimerInterval);
             globalTimeElapsed = 0;
             document.getElementById('globalTimer').textContent = 'Tempo: 00:00:00';
+            localStorage.removeItem(GLOBAL_TIMER_KEY);
         }
 
         function saveWorkoutState(exerciseId, state) {
@@ -454,12 +462,14 @@
             let workoutTimer;
             let isRecoveryActive = false;
             let remainingTime = 0;
+            let workoutRemainingTime = 0;
 
             // Load previous state
             const savedState = loadWorkoutState(exerciseId);
             if (savedState) {
                 currentSeries = savedState.currentSeries || 0;
                 remainingTime = savedState.remainingTime || 0;
+                workoutRemainingTime = savedState.workoutRemainingTime || 0;
                 isRecoveryActive = savedState.isRecoveryActive || false;
             }
 
@@ -475,11 +485,13 @@
                 saveWorkoutState(exerciseId, {
                     currentSeries,
                     remainingTime,
+                    workoutRemainingTime,
                     isRecoveryActive
                 });
             }
 
-            function startRecoveryTimer(duration) {
+	    function startRecoveryTimer(duration) {
+                // Reset recovery when adding a new series
                 if (isRecoveryActive) {
                     clearInterval(timerInterval);
                 }
@@ -513,9 +525,44 @@
                 }, 1000);
             }
 
-            function startAbTimer() {
-                let timeElapsed = 0;
+            // Special handling for ab workouts
+            if (isAbWorkout) {
+                const startWorkoutButton = document.createElement('button');
+                startWorkoutButton.textContent = 'Inizia 2min';
+                timerControls.appendChild(startWorkoutButton);
+
+                startWorkoutButton.addEventListener('click', () => {
+                    if (workoutTimer) clearInterval(workoutTimer);
+                    startAbWorkoutTimer();
+                });
+            }
+
+            addButton.addEventListener('click', () => {
+                // If recovery is active, reset it when adding a new series
+                if (isRecoveryActive) {
+                    clearInterval(timerInterval);
+                    isRecoveryActive = false;
+                    timerDisplay.style.display = 'none';
+                    timerDisplay.classList.remove('active-timer');
+                }
+
+                if (currentSeries < maxSeries) {
+                    currentSeries++;
+                    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+                    saveCurrentState();
+
+                    if (currentSeries === maxSeries) {
+                        addButton.disabled = true;
+                    } else {
+                        startRecoveryTimer(recoveryTime);
+                    }
+                }
+            });
+		
+            function startAbWorkoutTimer() {
+                let timeElapsed = workoutRemainingTime || 0;
                 const workoutDuration = 120; // 2 minuti in secondi
+
                 timerDisplay.style.display = 'block';
                 timerDisplay.classList.add('active-timer');
 
@@ -523,6 +570,8 @@
                     const minutes = Math.floor(timeElapsed / 60);
                     const seconds = timeElapsed % 60;
                     timerDisplay.textContent = `Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    workoutRemainingTime = timeElapsed;
+                    saveCurrentState();
 
                     if (timeElapsed >= workoutDuration) {
                         clearInterval(workoutTimer);
@@ -571,13 +620,17 @@
                 if (workoutTimer) clearInterval(workoutTimer);
                 isRecoveryActive = false;
                 remainingTime = 0;
-                localStorage.removeItem(STORAGE_KEY);
+                workoutRemainingTime = 0;
+                localStorage.removeItem(exerciseId);
             });
 
-            // Restore previous state if exists
+            / Restore previous state if exists
             if (savedState) {
                 if (savedState.isRecoveryActive) {
                     startRecoveryTimer(savedState.remainingTime);
+                }
+                if (isAbWorkout && savedState.workoutRemainingTime) {
+                    startAbWorkoutTimer();
                 }
             }
 
