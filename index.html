@@ -375,34 +375,52 @@
 	
     <script>
 	// Utility function for local storage management with error handling
-	const StorageManager = {
-	    set: (key, value) => {
-	        try {
-	            if (key && value !== undefined) {
-	                localStorage.setItem(key, JSON.stringify(value));
+	    const StorageManager = {
+	        set: (key, value) => {
+	            try {
+	                if (key && value !== undefined) {
+	                    localStorage.setItem(key, JSON.stringify(value));
+	                }
+	            } catch (e) {
+	                console.error('Storage error:', e);
 	            }
-	        } catch (e) {
-	            console.error('Storage error:', e);
+	        },
+	        get: (key, defaultValue = null) => {
+	            try {
+	                const item = localStorage.getItem(key);
+	                return item ? JSON.parse(item) : defaultValue;
+	            } catch (e) {
+	                console.error('Storage retrieval error:', e);
+	                return defaultValue;
+	            }
+	        },
+	        clear: () => {
+	            try {
+	                localStorage.clear();
+	            } catch (e) {
+	                console.error('Storage clear error:', e);
+	            }
 	        }
-	    },
-	    get: (key, defaultValue = null) => {
-	        try {
-	            const item = localStorage.getItem(key);
-	            return item ? JSON.parse(item) : defaultValue;
-	        } catch (e) {
-	            console.error('Storage retrieval error:', e);
-	            return defaultValue;
-	        }
-	    },
-	    clear: () => {
-	        try {
-	            localStorage.clear();
-	        } catch (e) {
-	            console.error('Storage clear error:', e);
+	    };
+	// Funzione per riprodurre il suono con gestione degli errori
+	    function playSound() {
+	        const timerSound = document.getElementById('timer-sound');
+	        // Precarica il suono
+	        timerSound.load();
+	        
+	        // Promessa per gestire la riproduzione del suono
+	        const playPromise = timerSound.play();
+	
+	        if (playPromise !== undefined) {
+	            playPromise.then(_ => {
+	                // Riproduzione avviata con successo
+	            })
+	            .catch(error => {
+	                console.error("Errore nella riproduzione del suono:", error);
+	            });
 	        }
 	    }
-	};
-	
+	    
 	function getExerciseType(exerciseCard) {
 	    const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
 	    if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
@@ -532,145 +550,11 @@
 	}
 	
 	function createSeriesTracker(exerciseCard, maxSeries) {
-	    const exerciseTitle = exerciseCard.querySelector('h3').textContent;
-	    const exerciseKey = `exercise_${exerciseTitle}`;
-	    
-	    // Get saved state with all necessary properties
-	    const savedState = StorageManager.get(exerciseKey, {
-	        currentSeries: 0,
-	        isRecoveryActive: false,
-	        recoveryTimeLeft: 0,
-	        workoutTimeElapsed: 0,
-	        timerDisplayVisible: false,
-	        isTimerRunning: false
-	    });
-	
-	    const exerciseType = getExerciseType(exerciseCard);
-	    const recoveryTime = getRecoveryTime(exerciseType);
-	    const isAbWorkout = exerciseTitle.includes('ADDOMINALI');
-	    const timerSound = document.getElementById('timer-sound');
-	    
-	    // Create UI elements
-	    const counterDiv = document.createElement('div');
-	    counterDiv.className = 'series-counter';
-	
-	    const exerciseTypeDiv = document.createElement('div');
-	    exerciseTypeDiv.className = 'exercise-type';
-	    exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
-	    
-	    const counterDisplay = document.createElement('div');
-	    counterDisplay.className = 'counter-display';
-	    
-	    const timerDisplay = document.createElement('div');
-	    timerDisplay.className = 'timer-display';
-	    
-	    const timerControls = document.createElement('div');
-	    timerControls.className = 'timer-controls';
-	    
-	    const addButton = document.createElement('button');
-	    addButton.textContent = '+ Serie';
-	    
-	    const resetButton = document.createElement('button');
-	    resetButton.textContent = 'Reset';
-	    resetButton.className = 'reset-button';
-	
-	    // Initialize state
-	    let currentSeries = savedState.currentSeries;
-	    let isRecoveryActive = savedState.isRecoveryActive;
-	    let timerInterval = null;
-	    let workoutTimer = null;
-	
-	    // Update UI based on saved state
-	    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	    if (currentSeries >= maxSeries) {
-	        addButton.disabled = true;
-	    }
-	
-	    timerDisplay.style.display = savedState.timerDisplayVisible ? 'block' : 'none';
-	    if (savedState.isRecoveryActive && savedState.recoveryTimeLeft > 0) {
-	        startRecoveryTimer(savedState.recoveryTimeLeft);
-	    }
-	
-	    function startRecoveryTimer(duration) {
-	        if (timerInterval) {
-	            clearInterval(timerInterval);
-	        }
+		const exerciseTitle = exerciseCard.querySelector('h3').textContent;
+	        const exerciseKey = `exercise_${exerciseTitle}`;
 	        
-	        isRecoveryActive = true;
-	        let timeLeft = duration;
-	        
-	        timerDisplay.style.display = 'block';
-	        timerDisplay.classList.add('active-timer');
-	        
-	        const newState = {
-	            ...savedState,
-	            isRecoveryActive: true,
-	            recoveryTimeLeft: timeLeft,
-	            timerDisplayVisible: true,
-	            isTimerRunning: true
-	        };
-	        StorageManager.set(exerciseKey, newState);
-	
-	        timerInterval = setInterval(() => {
-	            if (timeLeft <= 0) {
-	                clearInterval(timerInterval);
-	                timerSound.play();
-	                timerDisplay.textContent = 'Recupero completato!';
-	                isRecoveryActive = false;
-	                StorageManager.set(exerciseKey, {
-	                    ...newState,
-	                    isRecoveryActive: false,
-	                    recoveryTimeLeft: 0,
-	                    isTimerRunning: false
-	                });
-	                return;
-	            }
-	
-	            const minutes = Math.floor(timeLeft / 60);
-	            const seconds = timeLeft % 60;
-	            timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-	            timeLeft--;
-	            
-	            StorageManager.set(exerciseKey, {
-	                ...newState,
-	                recoveryTimeLeft: timeLeft
-	            });
-	        }, 1000);
-	    }
-	
-	    // Add event listeners
-	    addButton.addEventListener('click', () => {
-	        if (currentSeries < maxSeries) {
-	            currentSeries++;
-	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	            
-	            const newState = {
-	                ...savedState,
-	                currentSeries,
-	                timerDisplayVisible: true
-	            };
-	            StorageManager.set(exerciseKey, newState);
-	
-	            if (currentSeries >= maxSeries) {
-	                addButton.disabled = true;
-	            }
-	
-	            startRecoveryTimer(recoveryTime);
-	        }
-	    });
-	
-	    resetButton.addEventListener('click', () => {
-	        if (timerInterval) clearInterval(timerInterval);
-	        if (workoutTimer) clearInterval(workoutTimer);
-	        
-	        currentSeries = 0;
-	        isRecoveryActive = false;
-	        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	        addButton.disabled = false;
-	        timerDisplay.style.display = 'none';
-	        timerDisplay.classList.remove('active-timer');
-	        
-	        StorageManager.set(exerciseKey, {
+	        // Recupera lo stato salvato dal localStorage
+	        const savedState = StorageManager.get(exerciseKey, {
 	            currentSeries: 0,
 	            isRecoveryActive: false,
 	            recoveryTimeLeft: 0,
@@ -678,7 +562,115 @@
 	            timerDisplayVisible: false,
 	            isTimerRunning: false
 	        });
-	    });
+	
+	        const exerciseType = getExerciseType(exerciseCard);
+	        const recoveryTime = getRecoveryTime(exerciseType);
+	        
+	        // Crea gli elementi UI
+	        const counterDiv = document.createElement('div');
+	        counterDiv.className = 'series-counter';
+	
+	        const exerciseTypeDiv = document.createElement('div');
+	        exerciseTypeDiv.className = 'exercise-type';
+	        exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
+	        
+	        const counterDisplay = document.createElement('div');
+	        counterDisplay.className = 'counter-display';
+	        
+	        const timerDisplay = document.createElement('div');
+	        timerDisplay.className = 'timer-display';
+	        
+	        // Inizializza lo stato con i valori salvati
+	        let currentSeries = savedState.currentSeries;
+	        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	
+	        const addButton = document.createElement('button');
+	        addButton.textContent = '+ Serie';
+	        addButton.disabled = currentSeries >= maxSeries;
+	
+	        const resetButton = document.createElement('button');
+	        resetButton.textContent = 'Reset';
+	        resetButton.className = 'reset-button';
+	
+	        // Ripristina lo stato del timer se necessario
+	        if (savedState.isRecoveryActive && savedState.recoveryTimeLeft > 0) {
+	            timerDisplay.style.display = 'block';
+	            startRecoveryTimer(savedState.recoveryTimeLeft);
+	        }
+	
+	        function startRecoveryTimer(duration) {
+	            let timeLeft = duration;
+	            timerDisplay.style.display = 'block';
+	            timerDisplay.classList.add('active-timer');
+	
+	            const timerInterval = setInterval(() => {
+	                if (timeLeft <= 0) {
+	                    clearInterval(timerInterval);
+	                    playSound();
+	                    timerDisplay.textContent = 'Recupero completato!';
+	                    
+	                    // Aggiorna lo stato nel localStorage
+	                    StorageManager.set(exerciseKey, {
+	                        ...savedState,
+	                        isRecoveryActive: false,
+	                        recoveryTimeLeft: 0,
+	                        timerDisplayVisible: true
+	                    });
+	                    return;
+	                }
+	
+	                const minutes = Math.floor(timeLeft / 60);
+	                const seconds = timeLeft % 60;
+	                timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+	                timeLeft--;
+	
+	                // Aggiorna lo stato nel localStorage
+	                StorageManager.set(exerciseKey, {
+	                    ...savedState,
+	                    isRecoveryActive: true,
+	                    recoveryTimeLeft: timeLeft,
+	                    timerDisplayVisible: true
+	                });
+	            }, 1000);
+	
+	            return timerInterval;
+	        }
+	
+	    // Add event listeners
+	    addButton.addEventListener('click', () => {
+	            if (currentSeries < maxSeries) {
+	                currentSeries++;
+	                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	                addButton.disabled = currentSeries >= maxSeries;
+	
+	                // Salva lo stato aggiornato
+	                StorageManager.set(exerciseKey, {
+	                    ...savedState,
+	                    currentSeries: currentSeries,
+	                    timerDisplayVisible: true
+	                });
+	
+	                startRecoveryTimer(recoveryTime);
+	            }
+	        });
+	
+	    resetButton.addEventListener('click', () => {
+	            currentSeries = 0;
+	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	            addButton.disabled = false;
+	            timerDisplay.style.display = 'none';
+	            timerDisplay.classList.remove('active-timer');
+	
+	            // Resetta lo stato nel localStorage
+	            StorageManager.set(exerciseKey, {
+	                currentSeries: 0,
+	                isRecoveryActive: false,
+	                recoveryTimeLeft: 0,
+	                workoutTimeElapsed: 0,
+	                timerDisplayVisible: false,
+	                isTimerRunning: false
+	            });
+	        });
 	
 	    // Handle ab workout specific logic
 	    if (isAbWorkout) {
@@ -753,30 +745,29 @@
 	
 	    // Assemble UI
 	    counterDiv.appendChild(exerciseTypeDiv);
-	    counterDiv.appendChild(counterDisplay);
-	    counterDiv.appendChild(timerDisplay);
-	    counterDiv.appendChild(timerControls);
-	    counterDiv.appendChild(addButton);
-	    counterDiv.appendChild(resetButton);
+	        counterDiv.appendChild(counterDisplay);
+	        counterDiv.appendChild(timerDisplay);
+	        counterDiv.appendChild(addButton);
+	        counterDiv.appendChild(resetButton);
 	
-	    exerciseCard.appendChild(counterDiv);
+	        exerciseCard.appendChild(counterDiv);
 	}
 	
 	// Initialize everything when the page loads
 	document.addEventListener('DOMContentLoaded', () => {
 	    const totalWorkoutTimer = new TotalWorkoutTimer();
-	    
-	    const exerciseCards = document.querySelectorAll('.exercise-card');
-	    exerciseCards.forEach(card => {
-	        const seriesText = card.querySelector('p')?.textContent;
-	        if (seriesText) {
-	            const maxSeries = parseInt(seriesText);
-	            if (!isNaN(maxSeries)) {
-	                createSeriesTracker(card, maxSeries);
+        
+	        const exerciseCards = document.querySelectorAll('.exercise-card');
+	        exerciseCards.forEach(card => {
+	            const seriesText = card.querySelector('p')?.textContent;
+	            if (seriesText) {
+	                const maxSeries = parseInt(seriesText.split('x')[0]);
+	                if (!isNaN(maxSeries)) {
+	                    createSeriesTracker(card, maxSeries);
+	                }
 	            }
-	        }
+	        });
 	    });
-	});
 	</script>
 </body>
 </html>
