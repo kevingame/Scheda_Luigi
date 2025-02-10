@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scheda di Allenamento</title>
     <style>
-        /* [Tutto il CSS precedente rimane esattamente lo stesso] */
         body {
             font-family: Arial, sans-serif;
             background-color: #f7f7f7;
@@ -153,20 +152,6 @@
             .exercises-grid {
                 grid-template-columns: 1fr;
             }
-        
-        /* Stile per il pulsante di reset globale */
-        #global-reset-button {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background-color: red;
-            color: white;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            z-index: 1000;
-            cursor: pointer;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -362,174 +347,83 @@
     </div>
 
     <script>
-        // Chiave per il Local Storage
-        const STORAGE_KEY = 'workoutTrackerState';
-        
-        // Funzione per il suono di recupero
-        function playRecoverySound() {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // nota A4
-                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // volume basso
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + 0.5); // breve beep
-            } catch (error) {
-                console.error('Impossibile riprodurre il suono:', error);
-            }
-        }
-
-        // Funzione per resettare completamente l'allenamento
-        function resetEntireWorkout() {
-            // Conferma prima del reset
-            const conferma = confirm('Sei sicuro di voler resettare completamente l\'allenamento? Tutti i progressi andranno persi.');
-            
-            if (conferma) {
-                // Rimuovi tutti i dati salvati
-                localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem('workoutStartTime');
-                
-                // Ricarica la pagina per ripristinare lo stato iniziale
-                location.reload();
-            }
-        }
-
-        function startRecoveryTimer(duration) {
-            isRecoveryActive = true;
-            let timeLeft = duration;
-            timerDisplay.style.display = 'block';
-            timerDisplay.classList.add('active-timer');
-            
-            timerInterval = setInterval(() => {
-                const minutes = Math.floor(timeLeft / 60);
-                const seconds = timeLeft % 60;
-                timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    timerDisplay.style.display = 'none';
-                    timerDisplay.classList.remove('active-timer');
-                    playRecoverySound();
-                    isRecoveryActive = false;
-                }
-                timeLeft--;
-            }, 1000);
-        }
-        
-        // Gestione delle serie
-        addButton.addEventListener('click', () => {
-            if (currentSeries < maxSeries) {
-                currentSeries++;
-                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-                
-                if (currentSeries < maxSeries) {
-                    startRecoveryTimer(recoveryTime);
-                }
-            }
-        });
-        
-        resetButton.addEventListener('click', () => {
-            currentSeries = 0;
-            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-            clearInterval(timerInterval);
-            timerDisplay.style.display = 'none';
-            timerDisplay.classList.remove('active-timer');
-            isRecoveryActive = false;
-        });
-        
-        // Aggiunta degli elementi al DOM
-        counterDiv.appendChild(exerciseTypeDiv);
-        counterDiv.appendChild(counterDisplay);
-        counterDiv.appendChild(timerDisplay);
-        counterDiv.appendChild(timerControls);
-        timerControls.appendChild(addButton);
-        timerControls.appendChild(resetButton);
-        exerciseCard.appendChild(counterDiv);
-        
         function createSeriesTracker(exerciseCard, maxSeries) {
             const exerciseType = getExerciseType(exerciseCard);
             const recoveryTime = getRecoveryTime(exerciseType);
             const isAbWorkout = exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI');
-        
+
             const counterDiv = document.createElement('div');
             counterDiv.className = 'series-counter';
-        
+
             const exerciseTypeDiv = document.createElement('div');
             exerciseTypeDiv.className = 'exercise-type';
-            exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
-        
+            exerciseTypeDiv.textContent = Recupero: ${recoveryTime/60} minuti;
+
             const counterDisplay = document.createElement('div');
             counterDisplay.className = 'counter-display';
             counterDisplay.textContent = 'Serie: 0/' + maxSeries;
-        
+
             const timerDisplay = document.createElement('div');
             timerDisplay.className = 'timer-display';
             timerDisplay.style.display = 'none';
-        
+
             const timerControls = document.createElement('div');
             timerControls.className = 'timer-controls';
-        
+
             // Add series button
             const addButton = document.createElement('button');
             addButton.textContent = '+ Serie';
-        
+
             // Reset button
             const resetButton = document.createElement('button');
             resetButton.textContent = 'Reset';
             resetButton.className = 'reset-button';
-        
+
             let currentSeries = 0;
             let timerInterval;
             let workoutTimer;
             let isRecoveryActive = false;
-        
+
             if (isAbWorkout) {
                 // Add workout timer controls for ab exercises
                 const startWorkoutButton = document.createElement('button');
                 startWorkoutButton.textContent = 'Inizia 2min';
-        
+
                 const stopWorkoutButton = document.createElement('button');
                 stopWorkoutButton.textContent = 'Stop';
                 stopWorkoutButton.style.display = 'none';
-        
+
                 timerControls.appendChild(startWorkoutButton);
                 timerControls.appendChild(stopWorkoutButton);
-        
+
                 startWorkoutButton.addEventListener('click', () => {
-                    if (isRecoveryActive) {
-                        clearInterval(timerInterval);
-                        isRecoveryActive = false;
-                    }
-        
-                    let timeElapsed = 0;
-                    const workoutDuration = 120;
-                    startWorkoutButton.style.display = 'none';
-                    stopWorkoutButton.style.display = 'inline';
-                    timerDisplay.style.display = 'block';
-                    timerDisplay.classList.add('active-timer');
-        
-                    workoutTimer = setInterval(() => {
-                        const minutes = Math.floor(timeElapsed / 60);
-                        const seconds = timeElapsed % 60;
-                        timerDisplay.textContent = `Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-                        if (timeElapsed >= workoutDuration) {
+                if (isRecoveryActive) {
+                    clearInterval(timerInterval);
+                    isRecoveryActive = false;
+                }
+
+                let timeElapsed = 0; // Partiamo da 0
+                const workoutDuration = 120; // 2 minuti in secondi
+                startWorkoutButton.style.display = 'none';
+                stopWorkoutButton.style.display = 'inline';
+                timerDisplay.style.display = 'block';
+                timerDisplay.classList.add('active-timer');
+
+                workoutTimer = setInterval(() => {
+                    const minutes = Math.floor(timeElapsed / 60);
+                    const seconds = timeElapsed % 60;
+                    timerDisplay.textContent = Tempo: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')};
+
+                    if (timeElapsed >= workoutDuration) {
                             clearInterval(workoutTimer);
-                            startRecoveryTimer(60);
+                            startRecoveryTimer(60); // 1 minute recovery for abs
                             stopWorkoutButton.style.display = 'none';
                             startWorkoutButton.style.display = 'inline';
-                        }
-                        timeElapsed++;
-                    }, 1000);
-                });
-        
+                    }
+                    timeElapsed++;
+                }, 1000);
+        });
+
                 stopWorkoutButton.addEventListener('click', () => {
                     clearInterval(workoutTimer);
                     stopWorkoutButton.style.display = 'none';
@@ -537,8 +431,71 @@
                     startRecoveryTimer(60);
                 });
             }
+
+            function startRecoveryTimer(duration) {
+                if (isRecoveryActive) {
+                    clearInterval(timerInterval);
+                }
+
+                let timeLeft = duration;
+                timerDisplay.style.display = 'block';
+                timerDisplay.classList.add('active-timer');
+                isRecoveryActive = true;
+
+                timerInterval = setInterval(() => {
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerDisplay.textContent = Recupero: ${minutes}:${seconds.toString().padStart(2, '0')};
+
+                    if (timeLeft === 0) {
+                        clearInterval(timerInterval);
+                        timerDisplay.textContent = 'Recupero completato!';
+                        timerDisplay.classList.remove('active-timer');
+                        isRecoveryActive = false;
+                        setTimeout(() => {
+                            timerDisplay.style.display = 'none';
+                        }, 3000);
+                    }
+                    timeLeft--;
+                }, 1000);
+            }
+
+            addButton.addEventListener('click', () => {
+                if (currentSeries < maxSeries) {
+                    currentSeries++;
+                    counterDisplay.textContent = Serie: ${currentSeries}/${maxSeries};
+
+                    if (currentSeries < maxSeries) {
+                        startRecoveryTimer(recoveryTime);
+                    }
+                }
+
+                if (currentSeries === maxSeries) {
+                    addButton.disabled = true;
+                }
+            });
+
+            resetButton.addEventListener('click', () => {
+                currentSeries = 0;
+                counterDisplay.textContent = Serie: ${currentSeries}/${maxSeries};
+                addButton.disabled = false;
+                timerDisplay.style.display = 'none';
+                timerDisplay.classList.remove('active-timer');
+                if (timerInterval) clearInterval(timerInterval);
+                if (workoutTimer) clearInterval(workoutTimer);
+                isRecoveryActive = false;
+            });
+
+            counterDiv.appendChild(exerciseTypeDiv);
+            counterDiv.appendChild(counterDisplay);
+            counterDiv.appendChild(timerDisplay);
+            counterDiv.appendChild(timerControls);
+            counterDiv.appendChild(addButton);
+            counterDiv.appendChild(resetButton);
+
+            exerciseCard.appendChild(counterDiv);
         }
-        
+
         function getExerciseType(exerciseCard) {
             const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
             if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
@@ -550,7 +507,7 @@
             }
             return 'large'; // default to large muscle group
         }
-        
+
         function getRecoveryTime(exerciseType) {
             switch (exerciseType) {
                 case 'large':
@@ -562,39 +519,8 @@
                     return 90;
             }
         }
-        
-        // Mantieni il tempo totale dell'allenamento tra i ricaricamenti
-        let workoutStartTime = localStorage.getItem('workoutStartTime');
-        if (!workoutStartTime) {
-            workoutStartTime = Date.now();
-            localStorage.setItem('workoutStartTime', workoutStartTime);
-        }
-        
-        // Visualizza il tempo totale dell'allenamento
-        function updateTotalWorkoutTime() {
-            const elapsedTime = Math.floor((Date.now() - parseInt(workoutStartTime)) / 1000);
-            const hours = Math.floor(elapsedTime / 3600);
-            const minutes = Math.floor((elapsedTime % 3600) / 60);
-            const seconds = elapsedTime % 60;
-            
-            let totalTimeDisplay = document.getElementById('total-workout-time');
-            if (!totalTimeDisplay) {
-                totalTimeDisplay = document.createElement('div');
-                totalTimeDisplay.id = 'total-workout-time';
-                totalTimeDisplay.style.position = 'fixed';
-                totalTimeDisplay.style.bottom = '10px';
-                totalTimeDisplay.style.right = '10px';
-                totalTimeDisplay.style.background = 'rgba(0,0,0,0.7)';
-                totalTimeDisplay.style.color = 'white';
-                totalTimeDisplay.style.padding = '10px';
-                totalTimeDisplay.style.borderRadius = '5px';
-                document.body.appendChild(totalTimeDisplay);
-            }
-            
-            totalTimeDisplay.textContent = `Tempo totale: ${hours}h ${minutes}m ${seconds}s`;
-        }
-        
-        // Aggiungi listener e inizializza
+
+        // Add counters to all exercise cards when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             const exerciseCards = document.querySelectorAll('.exercise-card');
             exerciseCards.forEach(card => {
@@ -606,19 +532,6 @@
                     }
                 }
             });
-            
-            updateTotalWorkoutTime();
-            
-            // Aggiorna il tempo totale ogni secondo
-            setInterval(updateTotalWorkoutTime, 1000);
-
-            // Crea il pulsante di reset globale
-            const resetWorkoutButton = document.createElement('button');
-            resetWorkoutButton.id = 'global-reset-button';
-            resetWorkoutButton.textContent = 'Reset Allenamento';
-            resetWorkoutButton.addEventListener('click', resetEntireWorkout);
-            
-            document.body.appendChild(resetWorkoutButton);
         });
     </script>
 </body>
