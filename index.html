@@ -369,7 +369,7 @@
         <button id="reset-total-timer">Reset Allenamento</button>
     </div>
 
-    <audio id="timer-sound">
+    <audio id="timer-sound" playsinline preload="auto">
         <source src="https://raw.githubusercontent.com/kevingame/Scheda_Luigi/main/alarm.mp3" type="audio/mpeg">
     </audio>
 	
@@ -405,19 +405,66 @@
 	
 	function playSound() {
 	    const timerSound = document.getElementById('timer-sound');
-	    timerSound.load();
 	    
-	    const playPromise = timerSound.play();
-	
-	    if (playPromise !== undefined) {
-	        playPromise.then(_ => {
-	            // Riproduzione avviata con successo
-	        })
-	        .catch(error => {
-	            console.error("Errore nella riproduzione del suono:", error);
-	        });
+	    // Reset the audio to the beginning
+	    timerSound.currentTime = 0;
+	    
+	    // Create a gesture-based initialization for iOS
+	    let isInitialized = false;
+	    
+	    // Function to initialize audio
+	    function initializeAudio() {
+	        if (!isInitialized) {
+	            // Create and play a silent buffer to unlock the audio
+	            const context = new (window.AudioContext || window.webkitAudioContext)();
+	            const emptyBuffer = context.createBuffer(1, 1, 22050);
+	            const source = context.createBufferSource();
+	            source.buffer = emptyBuffer;
+	            source.connect(context.destination);
+	            source.start(0);
+	            isInitialized = true;
+	        }
 	    }
+	    
+	    // Attempt to play with error handling and fallback
+	    function attemptPlay() {
+	        const playPromise = timerSound.play();
+	        
+	        if (playPromise !== undefined) {
+	            playPromise.then(() => {
+	                // Playback started successfully
+	                console.log('Audio played successfully');
+	            }).catch(error => {
+	                console.log('Playback failed:', error);
+	                // If playback failed, try to initialize audio on next user interaction
+	                document.addEventListener('touchstart', initializeAudio, { once: true });
+	            });
+	        }
+	    }
+	    
+	    // Add vibration as a fallback
+	    try {
+	        if ('vibrate' in navigator) {
+	            navigator.vibrate(200); // Vibrate for 200ms
+	        }
+	    } catch (e) {
+	        console.log('Vibration not supported');
+	    }
+	    
+	    // Try to play the sound
+	    attemptPlay();
 	}
+	
+	// Initialize audio on first user interaction
+	document.addEventListener('touchstart', function initAudio() {
+	    const audio = document.getElementById('timer-sound');
+	    audio.load();
+	    audio.play().then(() => {
+	        audio.pause();
+	        audio.currentTime = 0;
+	    }).catch(e => console.log('Audio init failed:', e));
+	    document.removeEventListener('touchstart', initAudio);
+	}, { once: true });
 	
 	function getExerciseType(exerciseCard) {
 	    const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
