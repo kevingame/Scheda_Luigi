@@ -375,52 +375,50 @@
 	
     <script>
 	// Utility function for local storage management with error handling
-	    const StorageManager = {
-	        set: (key, value) => {
-	            try {
-	                if (key && value !== undefined) {
-	                    localStorage.setItem(key, JSON.stringify(value));
-	                }
-	            } catch (e) {
-	                console.error('Storage error:', e);
+	const StorageManager = {
+	    set: (key, value) => {
+	        try {
+	            if (key && value !== undefined) {
+	                localStorage.setItem(key, JSON.stringify(value));
 	            }
-	        },
-	        get: (key, defaultValue = null) => {
-	            try {
-	                const item = localStorage.getItem(key);
-	                return item ? JSON.parse(item) : defaultValue;
-	            } catch (e) {
-	                console.error('Storage retrieval error:', e);
-	                return defaultValue;
-	            }
-	        },
-	        clear: () => {
-	            try {
-	                localStorage.clear();
-	            } catch (e) {
-	                console.error('Storage clear error:', e);
-	            }
+	        } catch (e) {
+	            console.error('Storage error:', e);
 	        }
-	    };
-	// Funzione per riprodurre il suono con gestione degli errori
-	    function playSound() {
-	        const timerSound = document.getElementById('timer-sound');
-	        // Precarica il suono
-	        timerSound.load();
-	        
-	        // Promessa per gestire la riproduzione del suono
-	        const playPromise = timerSound.play();
-	
-	        if (playPromise !== undefined) {
-	            playPromise.then(_ => {
-	                // Riproduzione avviata con successo
-	            })
-	            .catch(error => {
-	                console.error("Errore nella riproduzione del suono:", error);
-	            });
+	    },
+	    get: (key, defaultValue = null) => {
+	        try {
+	            const item = localStorage.getItem(key);
+	            return item ? JSON.parse(item) : defaultValue;
+	        } catch (e) {
+	            console.error('Storage retrieval error:', e);
+	            return defaultValue;
+	        }
+	    },
+	    clear: () => {
+	        try {
+	            localStorage.clear();
+	        } catch (e) {
+	            console.error('Storage clear error:', e);
 	        }
 	    }
+	};
+	
+	function playSound() {
+	    const timerSound = document.getElementById('timer-sound');
+	    timerSound.load();
 	    
+	    const playPromise = timerSound.play();
+	
+	    if (playPromise !== undefined) {
+	        playPromise.then(_ => {
+	            // Riproduzione avviata con successo
+	        })
+	        .catch(error => {
+	            console.error("Errore nella riproduzione del suono:", error);
+	        });
+	    }
+	}
+	
 	function getExerciseType(exerciseCard) {
 	    const title = exerciseCard.closest('.exercises-grid')?.previousElementSibling?.textContent.toUpperCase() || '';
 	    if (title.includes('PETTO') || title.includes('GAMBE') || title.includes('SPALLE') || title.includes('DORSO')) {
@@ -430,16 +428,16 @@
 	    } else if (exerciseCard.querySelector('h3')?.textContent.includes('ADDOMINALI')) {
 	        return 'abs';
 	    }
-	    return 'large'; // default to large muscle group
+	    return 'large';
 	}
 	
 	function getRecoveryTime(exerciseType) {
 	    switch (exerciseType) {
 	        case 'large':
-	            return 90; // 1.5 minutes in seconds
+	            return 90;
 	        case 'small':
 	        case 'abs':
-	            return 60; // 1 minute in seconds
+	            return 60;
 	        default:
 	            return 90;
 	    }
@@ -467,14 +465,12 @@
 	        this.startButton.addEventListener('click', () => this.startTimer());
 	        this.resetButton.addEventListener('click', () => this.resetTimer());
 	        
-	        // Restore timer state
 	        if (this.isActive && this.startTime) {
 	            this.startTimer(true);
 	        } else {
 	            this.startButton.style.display = 'inline';
 	        }
 	        
-	        // Handle page visibility
 	        document.addEventListener('visibilitychange', () => {
 	            if (document.hidden) {
 	                StorageManager.set('lastHiddenTime', Date.now());
@@ -537,7 +533,6 @@
 	        this.timerDisplay.textContent = 'Tempo totale: 00:00:00';
 	        this.startButton.style.display = 'inline';
 	        
-	        // Reset all exercise trackers
 	        document.querySelectorAll('.series-counter').forEach(counter => {
 	            const exerciseTitle = counter.closest('.exercise-card').querySelector('h3').textContent;
 	            const exerciseKey = `exercise_${exerciseTitle}`;
@@ -550,11 +545,125 @@
 	}
 	
 	function createSeriesTracker(exerciseCard, maxSeries) {
-		const exerciseTitle = exerciseCard.querySelector('h3').textContent;
-	        const exerciseKey = `exercise_${exerciseTitle}`;
+	    const exerciseTitle = exerciseCard.querySelector('h3').textContent;
+	    const exerciseKey = `exercise_${exerciseTitle}`;
+	    const isAbWorkout = exerciseTitle.includes('ADDOMINALI');
+	    
+	    const savedState = StorageManager.get(exerciseKey, {
+	        currentSeries: 0,
+	        isRecoveryActive: false,
+	        recoveryTimeLeft: 0,
+	        workoutTimeElapsed: 0,
+	        timerDisplayVisible: false,
+	        isTimerRunning: false
+	    });
+	
+	    const exerciseType = getExerciseType(exerciseCard);
+	    const recoveryTime = getRecoveryTime(exerciseType);
+	    
+	    const counterDiv = document.createElement('div');
+	    counterDiv.className = 'series-counter';
+	
+	    const exerciseTypeDiv = document.createElement('div');
+	    exerciseTypeDiv.className = 'exercise-type';
+	    exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
+	    
+	    const counterDisplay = document.createElement('div');
+	    counterDisplay.className = 'counter-display';
+	    
+	    const timerDisplay = document.createElement('div');
+	    timerDisplay.className = 'timer-display';
+	    
+	    let currentSeries = savedState.currentSeries;
+	    counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	
+	    const addButton = document.createElement('button');
+	    addButton.textContent = '+ Serie';
+	    addButton.disabled = currentSeries >= maxSeries;
+	
+	    const resetButton = document.createElement('button');
+	    resetButton.textContent = 'Reset';
+	    resetButton.className = 'reset-button';
+	
+	    let timerInterval;
+	    let workoutTimer;
+	
+	    if (savedState.isRecoveryActive && savedState.recoveryTimeLeft > 0) {
+	        timerDisplay.style.display = 'block';
+	        startRecoveryTimer(savedState.recoveryTimeLeft);
+	    }
+	
+	    function startRecoveryTimer(duration) {
+	        let timeLeft = duration;
+	        timerDisplay.style.display = 'block';
+	        timerDisplay.classList.add('active-timer');
+	
+	        if (timerInterval) {
+	            clearInterval(timerInterval);
+	        }
+	
+	        timerInterval = setInterval(() => {
+	            if (timeLeft <= 0) {
+	                clearInterval(timerInterval);
+	                playSound();
+	                timerDisplay.textContent = 'Recupero completato!';
+	                
+	                StorageManager.set(exerciseKey, {
+	                    ...savedState,
+	                    isRecoveryActive: false,
+	                    recoveryTimeLeft: 0,
+	                    timerDisplayVisible: true
+	                });
+	                return;
+	            }
+	
+	            const minutes = Math.floor(timeLeft / 60);
+	            const seconds = timeLeft % 60;
+	            timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+	            timeLeft--;
+	
+	            StorageManager.set(exerciseKey, {
+	                ...savedState,
+	                isRecoveryActive: true,
+	                recoveryTimeLeft: timeLeft,
+	                timerDisplayVisible: true
+	            });
+	        }, 1000);
+	
+	        return timerInterval;
+	    }
+	
+	    addButton.addEventListener('click', () => {
+	        if (currentSeries < maxSeries) {
+	            currentSeries++;
+	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	            addButton.disabled = currentSeries >= maxSeries;
+	
+	            StorageManager.set(exerciseKey, {
+	                ...savedState,
+	                currentSeries: currentSeries,
+	                timerDisplayVisible: true
+	            });
+	
+	            startRecoveryTimer(recoveryTime);
+	        }
+	    });
+	
+	    resetButton.addEventListener('click', () => {
+	        currentSeries = 0;
+	        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
+	        addButton.disabled = false;
+	        timerDisplay.style.display = 'none';
+	        timerDisplay.classList.remove('active-timer');
 	        
-	        // Recupera lo stato salvato dal localStorage
-	        const savedState = StorageManager.get(exerciseKey, {
+	        if (timerInterval) {
+	            clearInterval(timerInterval);
+	        }
+	        if (workoutTimer) {
+	            clearInterval(workoutTimer);
+	        }
+	
+	        StorageManager.set(exerciseKey, {
 	            currentSeries: 0,
 	            isRecoveryActive: false,
 	            recoveryTimeLeft: 0,
@@ -562,118 +671,12 @@
 	            timerDisplayVisible: false,
 	            isTimerRunning: false
 	        });
+	    });
 	
-	        const exerciseType = getExerciseType(exerciseCard);
-	        const recoveryTime = getRecoveryTime(exerciseType);
-	        
-	        // Crea gli elementi UI
-	        const counterDiv = document.createElement('div');
-	        counterDiv.className = 'series-counter';
-	
-	        const exerciseTypeDiv = document.createElement('div');
-	        exerciseTypeDiv.className = 'exercise-type';
-	        exerciseTypeDiv.textContent = `Recupero: ${recoveryTime/60} minuti`;
-	        
-	        const counterDisplay = document.createElement('div');
-	        counterDisplay.className = 'counter-display';
-	        
-	        const timerDisplay = document.createElement('div');
-	        timerDisplay.className = 'timer-display';
-	        
-	        // Inizializza lo stato con i valori salvati
-	        let currentSeries = savedState.currentSeries;
-	        counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	
-	        const addButton = document.createElement('button');
-	        addButton.textContent = '+ Serie';
-	        addButton.disabled = currentSeries >= maxSeries;
-	
-	        const resetButton = document.createElement('button');
-	        resetButton.textContent = 'Reset';
-	        resetButton.className = 'reset-button';
-	
-	        // Ripristina lo stato del timer se necessario
-	        if (savedState.isRecoveryActive && savedState.recoveryTimeLeft > 0) {
-	            timerDisplay.style.display = 'block';
-	            startRecoveryTimer(savedState.recoveryTimeLeft);
-	        }
-	
-	        function startRecoveryTimer(duration) {
-	            let timeLeft = duration;
-	            timerDisplay.style.display = 'block';
-	            timerDisplay.classList.add('active-timer');
-	
-	            const timerInterval = setInterval(() => {
-	                if (timeLeft <= 0) {
-	                    clearInterval(timerInterval);
-	                    playSound();
-	                    timerDisplay.textContent = 'Recupero completato!';
-	                    
-	                    // Aggiorna lo stato nel localStorage
-	                    StorageManager.set(exerciseKey, {
-	                        ...savedState,
-	                        isRecoveryActive: false,
-	                        recoveryTimeLeft: 0,
-	                        timerDisplayVisible: true
-	                    });
-	                    return;
-	                }
-	
-	                const minutes = Math.floor(timeLeft / 60);
-	                const seconds = timeLeft % 60;
-	                timerDisplay.textContent = `Recupero: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-	                timeLeft--;
-	
-	                // Aggiorna lo stato nel localStorage
-	                StorageManager.set(exerciseKey, {
-	                    ...savedState,
-	                    isRecoveryActive: true,
-	                    recoveryTimeLeft: timeLeft,
-	                    timerDisplayVisible: true
-	                });
-	            }, 1000);
-	
-	            return timerInterval;
-	        }
-	
-	    // Add event listeners
-	    addButton.addEventListener('click', () => {
-	            if (currentSeries < maxSeries) {
-	                currentSeries++;
-	                counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	                addButton.disabled = currentSeries >= maxSeries;
-	
-	                // Salva lo stato aggiornato
-	                StorageManager.set(exerciseKey, {
-	                    ...savedState,
-	                    currentSeries: currentSeries,
-	                    timerDisplayVisible: true
-	                });
-	
-	                startRecoveryTimer(recoveryTime);
-	            }
-	        });
-	
-	    resetButton.addEventListener('click', () => {
-	            currentSeries = 0;
-	            counterDisplay.textContent = `Serie: ${currentSeries}/${maxSeries}`;
-	            addButton.disabled = false;
-	            timerDisplay.style.display = 'none';
-	            timerDisplay.classList.remove('active-timer');
-	
-	            // Resetta lo stato nel localStorage
-	            StorageManager.set(exerciseKey, {
-	                currentSeries: 0,
-	                isRecoveryActive: false,
-	                recoveryTimeLeft: 0,
-	                workoutTimeElapsed: 0,
-	                timerDisplayVisible: false,
-	                isTimerRunning: false
-	            });
-	        });
-	
-	    // Handle ab workout specific logic
 	    if (isAbWorkout) {
+	        const timerControls = document.createElement('div');
+	        timerControls.className = 'timer-controls';
+	        
 	        const startWorkoutButton = document.createElement('button');
 	        startWorkoutButton.textContent = 'Inizia 2min';
 	        
@@ -683,6 +686,7 @@
 	        
 	        timerControls.appendChild(startWorkoutButton);
 	        timerControls.appendChild(stopWorkoutButton);
+	        counterDiv.appendChild(timerControls);
 	
 	        if (savedState.isTimerRunning && savedState.workoutTimeElapsed < 120) {
 	            startAbWorkout(savedState.workoutTimeElapsed);
@@ -695,6 +699,10 @@
 	            timerDisplay.style.display = 'block';
 	            timerDisplay.classList.add('active-timer');
 	
+	            if (workoutTimer) {
+	                clearInterval(workoutTimer);
+	            }
+	
 	            workoutTimer = setInterval(() => {
 	                const minutes = Math.floor(timeElapsed / 60);
 	                const seconds = timeElapsed % 60;
@@ -702,7 +710,7 @@
 	        
 	                if (timeElapsed >= 120) {
 	                    clearInterval(workoutTimer);
-	                    timerSound.play();
+	                    playSound();
 	                    startRecoveryTimer(60);
 	                    stopWorkoutButton.style.display = 'none';
 	                    startWorkoutButton.style.display = 'inline';
@@ -720,9 +728,8 @@
 	        }
 	
 	        startWorkoutButton.addEventListener('click', () => {
-	            if (isRecoveryActive) {
+	            if (timerInterval) {
 	                clearInterval(timerInterval);
-	                isRecoveryActive = false;
 	            }
 	            startWorkoutButton.style.display = 'none';
 	            stopWorkoutButton.style.display = 'inline';
@@ -730,7 +737,9 @@
 	        });
 	        
 	        stopWorkoutButton.addEventListener('click', () => {
-	            clearInterval(workoutTimer);
+	            if (workoutTimer) {
+	                clearInterval(workoutTimer);
+	            }
 	            stopWorkoutButton.style.display = 'none';
 	            startWorkoutButton.style.display = 'inline';
 	            startRecoveryTimer(60);
@@ -743,31 +752,29 @@
 	        });
 	    }
 	
-	    // Assemble UI
 	    counterDiv.appendChild(exerciseTypeDiv);
-	        counterDiv.appendChild(counterDisplay);
-	        counterDiv.appendChild(timerDisplay);
-	        counterDiv.appendChild(addButton);
-	        counterDiv.appendChild(resetButton);
+	    counterDiv.appendChild(counterDisplay);
+	    counterDiv.appendChild(timerDisplay);
+	    counterDiv.appendChild(addButton);
+	    counterDiv.appendChild(resetButton);
 	
-	        exerciseCard.appendChild(counterDiv);
+	    exerciseCard.appendChild(counterDiv);
 	}
 	
-	// Initialize everything when the page loads
 	document.addEventListener('DOMContentLoaded', () => {
 	    const totalWorkoutTimer = new TotalWorkoutTimer();
-        
-	        const exerciseCards = document.querySelectorAll('.exercise-card');
-	        exerciseCards.forEach(card => {
-	            const seriesText = card.querySelector('p')?.textContent;
-	            if (seriesText) {
-	                const maxSeries = parseInt(seriesText.split('x')[0]);
-	                if (!isNaN(maxSeries)) {
-	                    createSeriesTracker(card, maxSeries);
-	                }
+	    
+	    const exerciseCards = document.querySelectorAll('.exercise-card');
+	    exerciseCards.forEach(card => {
+	        const seriesText = card.querySelector('p')?.textContent;
+	        if (seriesText) {
+	            const maxSeries = parseInt(seriesText.split('x')[0]);
+	            if (!isNaN(maxSeries)) {
+	                createSeriesTracker(card, maxSeries);
 	            }
-	        });
+	        }
 	    });
+	});
 	</script>
 </body>
 </html>
